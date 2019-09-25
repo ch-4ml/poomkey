@@ -24,6 +24,6 @@ app.get('/', (req, res) => {
 });
 
 // Server initialize
-app.listen(3000, function() {
+app.listen(8080, function() {
     console.log("Run server");
 });

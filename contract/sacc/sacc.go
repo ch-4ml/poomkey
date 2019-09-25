@@ -14,88 +14,92 @@ import (
 	"github.com/hyperledger/fabric/protos/peer"
 )
 
-// SimpleAsset implements a simple chaincode to manage an asset
+// 체인코드에서 발생되는 모든 데이터가 저장되는 공간
 type SimpleAsset struct {
 }
-type Data struct {
-	Index    string `json:"index"`
-	Key      string `json:"key"`
-	Name     string `json:"name"`
-	Owner    string `json:"owner"`
-	Validity string `json:"validity"`
+
+// 키 구조체 (World State에 담기는 정보)
+type Key struct {
+	ObjectType	 string `json:"docType"` // 카우치 DB의 인덱스 기능을 쓰기위한 파라미터, 이 오브젝트 타입에 만든 구조체 이름을 넣으면 인덱스를 찾을 수 있음
+	PoomId	 	 string `json:"poomId"` // 제품키 식별값
+	PoomKey   	 string `json:"poomKey"` // 제품키 
+	PoomName  	 string `json:"poomName"` // 제품 이름
+	PoomOwner	 string `json:"poomOwner"` // 제품키 소유자
+	PoomValidity string `json:"poomValidity"` // 제품키 사용 가능 기간
 }
-
-// Init is called during chaincode instantiation to initialize any
-// data. Note that chaincode upgrade also calls this function to reset
-// or to migrate data.
+ 
+// 초기화 함수
 func (t *SimpleAsset) Init(stub shim.ChaincodeStubInterface) peer.Response {
-
+	// nil = null을 의미한다. 이는 0으로 초기화 되어 있거나 한 것이 아닌 진짜 비어있는 값이다.
 	return shim.Success(nil)
 }
-
-// Invoke is called per transaction on the chaincode. Each transaction is
-// either a 'get' or a 'set' on the asset created by Init function. The Set
-// method may create a new asset by specifying a new key-value pair.
+ 
+// 호출할 함수를 식별하는 함수
 func (t *SimpleAsset) Invoke(stub shim.ChaincodeStubInterface) peer.Response {
-	// Extract the function and args from the transaction proposal
+	// 함수 이름과, args를 분리하여 저장한다.
 	fn, args := stub.GetFunctionAndParameters()
 
 	var result string
 	var err error
-	if fn == "set" {
-		result, err = set(stub, args)
-	} else if fn == "get" {
-		result, err = get(stub, args)
-	} else if fn == "getAllKeys" {
-		result, err = getAllKeys(stub)
+	if fn == "setKey" {
+		result, err = setKey(stub, args)
+	} else if fn == "getKeysById" {
+		result, err = getKeysById(stub) 
+	} else if fn == "getKeysByOwner" {
+		result, err = getKeysByOwner(stub, args)
+	} else if fn == "changeKeyOwner" {
+		result, err = changeKeyOwner(stub, args)
 	} else {
 		return shim.Error("Not supported chaincode function.")
 	}
-
 	if err != nil {
 		return shim.Error(err.Error())
 	}
-
-	// Return the result as success payload
 	return shim.Success([]byte(result))
 }
+ 
 
-// Set stores the asset (both key and value) on the ledger. If the key exists,
-// it will override the value with the new one
-func set(stub shim.ChaincodeStubInterface, args []string) (string, error) {
+func setKey(stub shim.ChaincodeStubInterface, args []string) (string, error) {
 	if len(args) != 5 {
 		return "", fmt.Errorf("Incorrect arguments. Expecting a key and a value")
 	}
 
 	// JSON  변환
-	var data = Data{Index: args[0], Key: args[1], Name: args[2], Owner: args[3], Validity: args[4]}
-	dataAsBytes, _ := json.Marshal(data)
+	var poomKey = Key{ObjectType: "Key", PoomId: args[0], PoomKey: args[1], PoomName: args[2], PoomOwner: args[3], PoomValidity: args[4]}
+	poomKeyAsBytes, _ := json.Marshal(poomKey)
 
-	err := stub.PutState(args[0], dataAsBytes)
+	// poomKeyJSON := `{"docType": "Key", "PoomId":`+ args[0] +`", PoomKey":`+ args[1] + `", PoomName":`+ args[2] + `", PoomOwner":`+args[3]+ `", PoomValidity":` + args[4] + `}`
+	// poomKeyJSONasBytes := []byte(str)
+
+	err := stub.PutState(args[0], poomKeyAsBytes)
 	if err != nil {
 		return "", fmt.Errorf("Failed to set asset: %s", args[0])
 	}
-	return string(dataAsBytes), nil
-}
-
-// Get returns the value of the specified asset key
-func get(stub shim.ChaincodeStubInterface, args []string) (string, error) {
-	if len(args) != 1 {
-		return "", fmt.Errorf("Incorrect arguments. Expecting a key")
-	}
-
-	value, err := stub.GetState(args[0])
+	
+	indexName := "owner~key"
+	ownerIdIndexKey, err := stub.CreateCompositeKey(indexName, []string {poomKey.PoomOwner})
 	if err != nil {
-		return "", fmt.Errorf("Failed to get asset: %s with error: %s", args[0], err)
+		return "", fmt.Errorf("Failed to: %s", err)
 	}
-	if value == nil {
-		return "", fmt.Errorf("Asset not found: %s", args[0])
+	// value 에 비어있는 바이트 배열 생성
+	value := []byte{0x00}
+	stub.PutState(ownerIdIndexKey, value)
+	// 인덱스 목록이기 때문에 이 목록을 가지고 자료를 찾아야함
+	// owner를 가져온다.
+	resultsIterator, err := stub.GetQueryResult(queryString)
+	if err != nil {
+		return nil, err
 	}
-	return string(value), nil
+	defer resultsIterator.Close()
+	buffer, err := constructQueryResponseFromIterator(resultsIterator)
+	if err != nil {
+		return nil, err
+	}
+	return buffer.String(), nil
 }
 
-// Get returns the value of the specified asset key
-func getAllKeys(stub shim.ChaincodeStubInterface) (string, error) {
+
+func getKeysById(stub shim.ChaincodeStubInterface) (string, error) {
 
 	iter, err := stub.GetStateByRange("0", "9")
 	if err != nil {
@@ -103,9 +107,9 @@ func getAllKeys(stub shim.ChaincodeStubInterface) (string, error) {
 	}
 	defer iter.Close()
 
+
 	var buffer string
 	buffer = "["
-
 	comma := false
 	for iter.HasNext() {
 		res, err := iter.Next()
@@ -116,7 +120,6 @@ func getAllKeys(stub shim.ChaincodeStubInterface) (string, error) {
 			buffer += ","
 		}
 		buffer += string(res.Value)
-
 		comma = true
 	}
 	buffer += "]"
@@ -126,7 +129,101 @@ func getAllKeys(stub shim.ChaincodeStubInterface) (string, error) {
 	return string(buffer), nil
 }
 
-// main function starts up the chaincode in the container during instantiate
+func getKeysByOwner(stub shim.ChaincodeStubInterface, args []string) (string, error) {
+	if len(args) != 1 {
+		return "", fmt.Errorf("Incorrect arguments. Expecting a key")
+	}
+	owner := args[0]
+	queriedKeysByOwnerIterator, err := stub.GetStateByPartialCompositeKey("owner~id", []string{owner})
+	if err != nil {
+		return "", fmt.Errorf("...")
+	}
+	defer queriedKeysByOwnerIterator.Close()
+	
+	var buffer string
+	buffer = "["
+
+	comma := false
+	for queriedKeysByOwnerIterator.HasNext() {
+		res, err := queriedKeysByOwnerIterator.Next()
+		if err != nil {
+			return "", fmt.Errorf("%s", err)
+		}
+		if comma == true {
+			buffer += ","
+		}
+		buffer += string(res.Key)
+		buffer += string(":")
+		buffer += string(res.Value)
+		comma = true
+	}
+	
+	buffer += "]"
+
+	fmt.Println(buffer)
+	
+	return string(buffer), nil
+}
+
+// transfer 하면 index도 알아서 변경될까?
+func changeKeyOwner(stub shim.ChaincodeStubInterface, args []string) (string, error) {
+	if (len(args) != 3) {
+		return "", fmt.Errorf("Incorrect arguments. Expecting a key")
+	}
+	poomKeyId := args[0]
+	owner := args[1]
+	newOwner := args[2]
+	queriedKeysByOwnerIterator, err := stub.GetStateByPartialCompositeKey("owner~id", []string{owner})
+	if err != nil {
+		return "", fmt.Errorf("...")
+	}
+	defer queriedKeysByOwnerIterator.Close()
+	
+	flag := false
+	for queriedKeysByOwnerIterator.HasNext() {
+		res, err := queriedKeysByOwnerIterator.Next()
+		if err != nil {
+			return "", fmt.Errorf("%s", err)
+		}
+		objectType, compositeKeyParts, err := stub.SplitCompositeKey(res.Key)
+		fmt.Printf(objectType)
+		if err != nil {
+			return "", fmt.Errorf("%s", err)
+		}
+		returnedOwner := compositeKeyParts[0]
+		returnedId := compositeKeyParts[1]
+		fmt.Printf(returnedOwner)
+		if returnedId == poomKeyId {
+			flag = true
+			break
+		}
+	}
+
+	if !flag {
+		return "내 키 아닌디", fmt.Errorf("내 키가 아니여")
+	}
+
+	keyAsBytes, err := stub.GetState(poomKeyId)
+	if err != nil {
+		return "", fmt.Errorf("%s", err)
+	} else if keyAsBytes == nil {
+		return "", fmt.Errorf("Key does not exist")
+	}
+
+	keyToTransfer := Key{}
+	err = json.Unmarshal(keyAsBytes, &keyToTransfer)
+	if err != nil {
+		return "", fmt.Errorf("%s", err)
+	}
+	keyToTransfer.PoomOwner = newOwner
+	keyJSONasBytes, _ := json.Marshal(keyToTransfer)
+	err = stub.PutState(poomKeyId, keyJSONasBytes)
+	if err != nil {
+		return "", fmt.Errorf("%s", err)
+	}
+	return string("성공스키"), nil
+}
+
 func main() {
 	if err := shim.Start(new(SimpleAsset)); err != nil {
 		fmt.Printf("Error starting SimpleAsset chaincode: %s", err)

@@ -21,7 +21,7 @@
                 var id_value = $('#id').val()
                 var pw_value = $('#pw').val()
                 $.ajax({
-                    url:"http://localhost:3000/login",
+                    url:"http://ch-4ml.iptime.org:8080/login",
                     method:"POST",
                     async: true,
                     contentType: "application/x-www-form-urlencoded",
@@ -32,8 +32,15 @@
                         id : id_value,
                         pw : pw_value
                     },
-                    succsess : function(data){
-                        console.log(data)
+                    error : function(error) {
+                        console.log("Error!");
+                    },
+                    success : function(data) {
+                        console.log("success!");
+                    },
+                    complete : function() {
+                        console.log("complete!");
+                        location.href = "/index.html";
                     }
                 })
             })
@@ -53,7 +60,7 @@
             </tr>
             <tr>
                 <center>
-                <form class="form-inline" method="post" action="">
+                <form class="form-inline" method="post">
                     <div class="form-group">
                         <input type="text" class="form-control" id="id" placeholder="아이디를 입력하세요.">
                     </div>

@@ -27,13 +27,13 @@ userRouter.post('/user', async (req, res) => {
     }
 });
 
-// userRouter.post('/login')
 
 userRouter.post('/login', async (req, res) => {
     const user = {
         id: req.body.id,
         pw: req.body.pw
     };
+    console.log("로그인 정보",user);
     let data;
     try {
         let result = await userModel.login(user);
@@ -45,6 +45,7 @@ userRouter.post('/login', async (req, res) => {
         } else {
             data = { msg: "로그인 정보가 일치하지 않습니다." }
         }
+        console.log(data);
         res.status(200).send(data)
     } catch(err) {
         res.status(500).send(err);

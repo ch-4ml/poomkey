@@ -15,6 +15,16 @@ const ccp = JSON.parse(ccpJSON);
 // 키 등록
 keyRouter.post('/key', async (req, res) => {
     try {
+        /* 
+            블록체인에 올라갈 Key Data
+            {
+                "index": "DB에 저장된 index"
+                "key" : "제품키",
+                "name" : "제품 이름",
+                "owner" : "제품키 소유자",
+                "validity" : "제품키 사용 가능 기간",
+            }
+        */
         var key = req.body.key;
         var name = req.body.name;
         var owner = req.body.owner;
@@ -27,39 +37,29 @@ keyRouter.post('/key', async (req, res) => {
             validity: validity
         }
 
-        let index = await keyModel.register(keyData);
-        index = index[0]['insertId'];
+        let index = await keyModel.setKey(keyData);
+        index = index[0][0]['insertId'];
+        console.log(index)
 
-        // Create a new file system based wallet for managing identities.
         const walletPath = path.join(process.cwd(), 'wallet');
         const wallet = new FileSystemWallet(walletPath);
         console.log(`Wallet path: ${walletPath}`);
 
-        // Check to see if we've already enrolled the user.
         const userExists = await wallet.exists('user1');
         if (!userExists) {
             console.log('An identity for the user "user1" does not exist in the wallet');
             console.log('Run the registerUser.js application before retrying');
             return;
         }
-        // Create a new gateway for connecting to our peer node.
         const gateway = new Gateway();
         await gateway.connect(ccp, { wallet, identity: 'user1', discovery: { enabled: false } }); 
 
-        // Get the network (channel) our contract is deployed to.
         const network = await gateway.getNetwork('mychannel');
 
-        // Get the contract from the network.
         const contract = network.getContract('sacc');
 
-        // Submit the specified transaction.
-        // createCar transaction - requires 5 argument, ex: ('createCar', 'CAR12', 'Honda', 'Accord', 'Black', 'Tom')
-        // changeCarOwner transaction - requires 2 args , ex: ('changeCarOwner', 'CAR10', 'Dave')
-        // await contract.submitTransaction('createCar', 'CAR11', 'Hnda', 'Aord', 'Bla', 'Tom');
         await contract.submitTransaction('set', index, key, name, owner, validity);
         console.log('Transaction has been submitted');
-
-        // Disconnect from the gateway.
         await gateway.disconnect();
 
         res.status(200).json({response: 'Transaction has been submitted'});
@@ -70,30 +70,23 @@ keyRouter.post('/key', async (req, res) => {
     }
 });
 
-keyRouter.get('/keys', async (req, res) => {
-    // Create a new file system based wallet for managing identities.
+keyRouter.post('/getKey', async (req, res) => {
     const walletPath = path.join(process.cwd(), 'wallet');
     const wallet = new FileSystemWallet(walletPath);
     console.log(`Wallet path: ${walletPath}`);
-
-    // Check to see if we've already enrolled the user.
     const userExists = await wallet.exists('user1');
+
     if (!userExists) {
         console.log('An identity for the user "user1" does not exist in the wallet');
         console.log('Run the registerUser.js application before retrying');
         return;
     }
 
-    // Create a new gateway for connecting to our peer node.
     const gateway = new Gateway();
     await gateway.connect(ccp, { wallet, identity: 'user1', discovery: { enabled: false } });
-
-    // Get the network (channel) our contract is deployed to.
     const network = await gateway.getNetwork('mychannel');
-
-    // Get the contract from the network.
+    
     const contract = network.getContract('sacc');
-
     const result = await contract.evaluateTransaction('getAllKeys');
     console.log(`Transaction has been evaluated, result is: ${result.toString()}`);
 
@@ -106,34 +99,21 @@ keyRouter.get('/key/:index', async (req, res) => {
         var index = req.params.index;
         console.log(index);
 
-        // Create a new file system based wallet for managing identities.
         const walletPath = path.join(process.cwd(), 'wallet');
         const wallet = new FileSystemWallet(walletPath);
         console.log(`Wallet path: ${walletPath}`);
-
-        // Check to see if we've already enrolled the user.
         const userExists = await wallet.exists('user1');
         if (!userExists) {
             console.log('An identity for the user "user1" does not exist in the wallet');
             console.log('Run the registerUser.js application before retrying');
             return;
         }
-        // Create a new gateway for connecting to our peer node.
         const gateway = new Gateway();
         await gateway.connect(ccp, { wallet, identity: 'user1', discovery: { enabled: false } });
-
-        // Get the network (channel) our contract is deployed to.
         const network = await gateway.getNetwork('mychannel');
-
-        // Get the contract from the network.
         const contract = network.getContract('sacc');
-
-        // Evaluate the specified transaction.
-        // queryCar transaction - requires 1 argument, ex: ('queryCar', 'CAR4')
         const result = await contract.evaluateTransaction('get', index);
-
         console.log(`Transaction has been evaluated, result is: ${result.toString()}`);
-
         var obj = JSON.parse(result)
         res.status(200).json(obj);
 
@@ -145,32 +125,35 @@ keyRouter.get('/key/:index', async (req, res) => {
 
 keyRouter.put('/key', async (req, res) => {
     try {
-        var from_index = req.session.user.index;
-        var to_index = req.body.userIndex;
-        var key_index = req.body.index
+        var fromIndex = req.session.user.index;
+        var toIndex = req.body.toIndex;
+        var poomKeyIndex = req.body.poomKeyIndex;
 
-        // Create a new file system based wallet for managing identities.
+        var dbKeyData = {
+            owner : dbKeyData,
+            keyIndex : poomKeyIndex
+        }
+
+        let index = await keyModel.chageOwnerKey(dbKeyData);
+        index = index[0];
+        console.log(index)
         const walletPath = path.join(process.cwd(), 'wallet');
         const wallet = new FileSystemWallet(walletPath);
         console.log(`Wallet path: ${walletPath}`);
 
-        // Check to see if we've already enrolled the user.
         const userExists = await wallet.exists('user1');
         if (!userExists) {
             console.log('An identity for the user "user1" does not exist in the wallet');
             console.log('Run the registerUser.js application before retrying');
             return;
         }
-        // Create a new gateway for connecting to our peer node.
         const gateway = new Gateway();
         await gateway.connect(ccp, { wallet, identity: 'user1', discovery: { enabled: false } });
 
-        // Get the network (channel) our contract is deployed to.
         const network = await gateway.getNetwork('mychannel');
 
-        // Get the contract from the network.
         const contract = network.getContract('sacc');
-        await contract.submitTransaction('changeKeyOwner', from_index, to_index, key_index);
+        await contract.submitTransaction('changeKeyOwner', poomKeyIndex, fromIndex, toIndex);
         await gateway.disconnect();
         res.status(200).json({response: 'Transaction has been submitted'});
     } catch (error) {
