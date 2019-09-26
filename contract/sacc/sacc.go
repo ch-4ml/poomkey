@@ -67,7 +67,7 @@ func setKey(stub shim.ChaincodeStubInterface, args []string) (string, error) {
 	// JSON  변환
 	var poomKey = Key{ObjectType: "Key", PoomId: args[0], PoomKey: args[1], PoomName: args[2], PoomOwner: args[3], PoomValidity: args[4]}
 	poomKeyAsBytes, _ := json.Marshal(poomKey)
-
+	// poomKeyAsBytes2, _ := json.Marshal(poomKey) 값이 사라지는것도 아님...
 	// poomKeyJSON := `{"docType": "Key", "PoomId":`+ args[0] +`", PoomKey":`+ args[1] + `", PoomName":`+ args[2] + `", PoomOwner":`+args[3]+ `", PoomValidity":` + args[4] + `}`
 	// poomKeyJSONasBytes := []byte(str)
 
@@ -77,25 +77,15 @@ func setKey(stub shim.ChaincodeStubInterface, args []string) (string, error) {
 	}
 	
 	indexName := "owner~key"
-	ownerIdIndexKey, err := stub.CreateCompositeKey(indexName, []string {poomKey.PoomOwner})
+	ownerKeyIndexKey, err := stub.CreateCompositeKey(indexName, []string {poomKey.PoomOwner})
 	if err != nil {
 		return "", fmt.Errorf("Failed to: %s", err)
 	}
 	// value 에 비어있는 바이트 배열 생성
 	value := []byte{0x00}
-	stub.PutState(ownerIdIndexKey, value)
-	// 인덱스 목록이기 때문에 이 목록을 가지고 자료를 찾아야함
-	// owner를 가져온다.
-	resultsIterator, err := stub.GetQueryResult(queryString)
-	if err != nil {
-		return nil, err
-	}
-	defer resultsIterator.Close()
-	buffer, err := constructQueryResponseFromIterator(resultsIterator)
-	if err != nil {
-		return nil, err
-	}
-	return buffer.String(), nil
+	stub.PutState(ownerKeyIndexKey, value)
+
+	return string(poomKeyAsBytes), nil
 }
 
 
