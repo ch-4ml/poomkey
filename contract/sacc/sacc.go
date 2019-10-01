@@ -9,6 +9,9 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"bytes"
+	"time"
+	"strconv"
 
 	"github.com/hyperledger/fabric/core/chaincode/shim"
 	"github.com/hyperledger/fabric/protos/peer"
@@ -43,12 +46,14 @@ func (t *SimpleAsset) Invoke(stub shim.ChaincodeStubInterface) peer.Response {
 	var err error
 	if fn == "setKey" {
 		result, err = setKey(stub, args)
-	} else if fn == "getKeysById" {
-		result, err = getKeysById(stub) 
+	} else if fn == "getAllKeys" {
+		result, err = getAllKeys(stub) 
 	} else if fn == "getKeysByOwner" {
 		result, err = getKeysByOwner(stub, args)
 	} else if fn == "changeKeyOwner" {
 		result, err = changeKeyOwner(stub, args)
+	} else if fn == "getHistoryByKey" {
+		result, err = getHistoryByKey(stub, args)
 	} else {
 		return shim.Error("Not supported chaincode function.")
 	}
@@ -58,7 +63,6 @@ func (t *SimpleAsset) Invoke(stub shim.ChaincodeStubInterface) peer.Response {
 	return shim.Success([]byte(result))
 }
  
-
 func setKey(stub shim.ChaincodeStubInterface, args []string) (string, error) {
 	if len(args) != 5 {
 		return "", fmt.Errorf("Incorrect arguments. Expecting a key and a value")
@@ -76,20 +80,29 @@ func setKey(stub shim.ChaincodeStubInterface, args []string) (string, error) {
 		return "", fmt.Errorf("Failed to set asset: %s", args[0])
 	}
 	
-	indexName := "owner~key"
-	ownerKeyIndexKey, err := stub.CreateCompositeKey(indexName, []string {poomKey.PoomOwner})
+	indexName := "owner~id"
+	ownerIdIndexKey, err := stub.CreateCompositeKey(indexName, []string{poomKey.PoomOwner, poomKey.PoomId})
 	if err != nil {
-		return "", fmt.Errorf("Failed to: %s", err)
+		return "", fmt.Errorf("Incorrect arguments. Expecting a key and a value")
 	}
 	// value 에 비어있는 바이트 배열 생성
 	value := []byte{0x00}
-	stub.PutState(ownerKeyIndexKey, value)
+	
+	stub.PutState(ownerIdIndexKey, value)
 
 	return string(poomKeyAsBytes), nil
 }
 
+func getKey(stub shim.ChaincodeStubInterface, arg string) (string, error) {
+	res, err := stub.GetState(arg)
+	if err != nil {
+		return "", fmt.Errorf("Failed to get %s with error: %s", arg, err)
+	}
 
-func getKeysById(stub shim.ChaincodeStubInterface) (string, error) {
+	return string(res), nil
+}
+
+func getAllKeys(stub shim.ChaincodeStubInterface) (string, error) {
 
 	iter, err := stub.GetStateByRange("0", "9")
 	if err != nil {
@@ -110,6 +123,7 @@ func getKeysById(stub shim.ChaincodeStubInterface) (string, error) {
 			buffer += ","
 		}
 		buffer += string(res.Value)
+		fmt.Printf(res.Key, res.Value)
 		comma = true
 	}
 	buffer += "]"
@@ -134,70 +148,62 @@ func getKeysByOwner(stub shim.ChaincodeStubInterface, args []string) (string, er
 	buffer = "["
 
 	comma := false
-	for queriedKeysByOwnerIterator.HasNext() {
-		res, err := queriedKeysByOwnerIterator.Next()
-		if err != nil {
-			return "", fmt.Errorf("%s", err)
-		}
-		if comma == true {
-			buffer += ","
-		}
-		buffer += string(res.Key)
-		buffer += string(":")
-		buffer += string(res.Value)
-		comma = true
-	}
-	
-	buffer += "]"
-
-	fmt.Println(buffer)
-	
-	return string(buffer), nil
-}
-
-// transfer 하면 index도 알아서 변경될까?
-func changeKeyOwner(stub shim.ChaincodeStubInterface, args []string) (string, error) {
-	if (len(args) != 3) {
-		return "", fmt.Errorf("Incorrect arguments. Expecting a key")
-	}
-	poomKeyId := args[0]
-	owner := args[1]
-	newOwner := args[2]
-	queriedKeysByOwnerIterator, err := stub.GetStateByPartialCompositeKey("owner~id", []string{owner})
-	if err != nil {
-		return "", fmt.Errorf("...")
-	}
-	defer queriedKeysByOwnerIterator.Close()
-	
-	flag := false
-	for queriedKeysByOwnerIterator.HasNext() {
+	var i int
+	for i = 0; queriedKeysByOwnerIterator.HasNext(); i++ {
 		res, err := queriedKeysByOwnerIterator.Next()
 		if err != nil {
 			return "", fmt.Errorf("%s", err)
 		}
 		objectType, compositeKeyParts, err := stub.SplitCompositeKey(res.Key)
-		fmt.Printf(objectType)
 		if err != nil {
 			return "", fmt.Errorf("%s", err)
 		}
+		fmt.Printf("")
 		returnedOwner := compositeKeyParts[0]
-		returnedId := compositeKeyParts[1]
-		fmt.Printf(returnedOwner)
-		if returnedId == poomKeyId {
-			flag = true
-			break
+		returnedKey := compositeKeyParts[1]
+		fmt.Printf("- found a key from index:%s owner:%s key:%s\n", objectType, returnedOwner, returnedKey)
+
+		if comma == true {
+			buffer += ","
 		}
+		
+		getKeyResult, err := getKey(stub, returnedKey)
+		buffer += getKeyResult
+		comma = true
 	}
+	buffer += "]"
 
-	if !flag {
-		return "내 키 아닌디", fmt.Errorf("내 키가 아니여")
+	fmt.Println("버퍼 내용 : ", buffer)
+	
+	return string(buffer), nil
+}
+
+// transfer 하면 index도 알아서 변경될까? ㄴㄴ World State에 저장하는 Composite Key는 자동으로 변경 안됨.
+// 1. 따로 변경해주거나 2. Metadata 설정해주거나 3. 직접 get 해와야 함(Marbles 예제)
+func changeKeyOwner(stub shim.ChaincodeStubInterface, args []string) (string, error) {
+	if (len(args) != 3) {
+		return "", fmt.Errorf("Incorrect arguments. Expecting a key")
 	}
+	poomId := args[0]
+	owner := args[1]
+	newOwner := args[2]
 
-	keyAsBytes, err := stub.GetState(poomKeyId)
+	keyAsBytes, err := stub.GetState(poomId)
 	if err != nil {
 		return "", fmt.Errorf("%s", err)
 	} else if keyAsBytes == nil {
 		return "", fmt.Errorf("Key does not exist")
+	}
+
+	indexName := "owner~id"
+
+	blank := "\u0000"
+
+	indexKey := blank + indexName + blank + owner + blank + poomId + blank
+	fmt.Println("앞 뒤가 똑같은 전화번호 " + indexKey + " 앞 뒤가 똑같은 전화번호")
+	err = stub.DelState(indexKey)
+	if err != nil {
+		return "", fmt.Errorf("%s", err)
 	}
 
 	keyToTransfer := Key{}
@@ -205,13 +211,88 @@ func changeKeyOwner(stub shim.ChaincodeStubInterface, args []string) (string, er
 	if err != nil {
 		return "", fmt.Errorf("%s", err)
 	}
+
+	if keyToTransfer.PoomOwner != owner {
+		return "", fmt.Errorf("Cannot match owner.")
+	}
+	
 	keyToTransfer.PoomOwner = newOwner
 	keyJSONasBytes, _ := json.Marshal(keyToTransfer)
-	err = stub.PutState(poomKeyId, keyJSONasBytes)
+	err = stub.PutState(poomId, keyJSONasBytes)
 	if err != nil {
 		return "", fmt.Errorf("%s", err)
 	}
-	return string("성공스키"), nil
+
+	ownerIdIndexKey, err := stub.CreateCompositeKey(indexName, []string{newOwner, poomId})
+	if err != nil {
+		return "", fmt.Errorf("Incorrect arguments. Expecting a key and a value")
+	}
+	// value 에 비어있는 바이트 배열 생성
+	value := []byte{0x00}
+
+	stub.PutState(ownerIdIndexKey, value)
+
+	return string(keyJSONasBytes), nil
+}
+
+func getHistoryByKey(stub shim.ChaincodeStubInterface, args []string) (string, error) {
+	if len(args) != 1 {
+		return "", fmt.Errorf("Incorrect number of arguments. Expecting 1")
+	}
+
+	poomId := args[0]
+
+	fmt.Printf("- start getHistoryByKey: %s\n", poomId)
+
+	resultsIterator, err := stub.GetHistoryForKey(poomId)
+	if err != nil {
+		return "", fmt.Errorf("%s", err)
+	}
+	defer resultsIterator.Close()
+
+	var buffer bytes.Buffer
+	buffer.WriteString("[")
+
+	bArrayMemberAlreadyWritten := false
+	for resultsIterator.HasNext() {
+		response, err := resultsIterator.Next()
+		if err != nil {
+			return "", fmt.Errorf("%s", err)
+		}
+		if bArrayMemberAlreadyWritten == true {
+			buffer.WriteString(",")
+		}
+		buffer.WriteString("{\"TxId\":")
+		buffer.WriteString("\"")
+		buffer.WriteString(response.TxId)
+		buffer.WriteString("\"")
+
+		buffer.WriteString(", \"Value\":")
+
+		if response.IsDelete {
+			buffer.WriteString("null")
+		} else {
+			buffer.WriteString(string(response.Value))
+		}
+
+		buffer.WriteString(", \"Timestamp\":")
+		buffer.WriteString("\"")
+		buffer.WriteString(time.Unix(response.Timestamp.Seconds, int64(response.Timestamp.Nanos)).String())
+		buffer.WriteString("\"")
+
+		buffer.WriteString(", \"IsDelete\":")
+		buffer.WriteString("\"")
+		buffer.WriteString(strconv.FormatBool(response.IsDelete))
+		buffer.WriteString("\"")
+
+		buffer.WriteString("}")
+		bArrayMemberAlreadyWritten = true
+	}
+	buffer.WriteString("]")
+
+	fmt.Printf("- getHistoryByKey returning:\n%s\n", buffer.String())
+
+	return buffer.String(), nil
 }
 
 func main() {

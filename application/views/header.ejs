@@ -1,0 +1,18 @@
+<a href="/"><h2>Welcome To PoomkeyPoomkey!</h2></a>
+<% if (data.user) { %>
+<h3>index: <%= data.user.index %>, id: <%= data.user.id %></h3>
+<% } %>
+<div>
+    <table class="table">
+        <tr><button type="submit" class="btn btn-primary" onclick="location.href='/keys'">제품 키 전체 조회</button></tr>
+        <tr><button type="submit" class="btn btn-primary" onclick="location.href='/key/history'">키 히스토리 조회</button></tr>
+        <% if (!data.user) { %>
+        <tr><button type="submit" class="btn btn-primary" onclick="location.href='/user/signup'">회원가입</button></tr>
+        <tr><button type="submit" class="btn btn-primary" onclick="location.href='/user/login'">로그인</button></tr>
+        <% } else { %>
+        <tr><button type="submit" class="btn btn-primary" onclick="location.href='/user/logout'">로그아웃</button></tr>
+        <tr><button type="submit" class="btn btn-primary" onclick="location.href='/key'">제품 키 등록</button></tr>
+        <tr><button type="submit" class="btn btn-primary" onclick="location.href='/keys/owner'">내 제품 키 조회</button></tr>
+        <% } %>
+    </table>
+</div>  

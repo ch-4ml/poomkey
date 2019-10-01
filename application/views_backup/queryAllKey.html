@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <style>
+        .form-group {
+            width: 80%;
+        }
+        .btn-primary {
+            width: 80%;
+        }
+    </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.2/css/bootstrap.min.css">
+    <script src="https://code.jquery.com/jquery-3.4.1.js"></script>
+    <script>
+            $(document).ready(function(){
+                $('#submit').click(function(){
+                    $.get("http://ch-4ml.iptime.org:8080/keys", function(data) {
+                        if (data.length > 0){
+                            var a = "";
+                            for(var i=0; i<data.length; i++) {
+                                a += "<tr>"
+                                a += "<td>"+data[i]['poomId']
+                                a += "</td>"
+                                a += "<td>"+data[i]['poomKey']
+                                a += "</td>"
+                                a += "<td>"+data[i]['poomName']
+                                a += "</td>"
+                                a += "<td>"+data[i]['poomOwner']
+                                a += "</td>"
+                                a += "<td>"+data[i]['poomValidity']
+                                a += "</td>"
+                                a += "</tr>"
+                            }
+                            $('#tableData').html(a);
+                            console.log(data)
+                        }
+                    })
+                })
+            })
+        </script>
+    <title>Poomkey App</title>
+</head>
+
+<body align="center">
+    <h2 onclick="location.href='./index.html'">Welcome To PoomkeyPoomkey!</h2>
+    <div>
+        <h2>제품 키 조회</h2>
+        <table id="tableData"></table>
+    </div>
+    <button type="submit" id="submit" class="btn btn-primary">확인</button>
+</body>
+
+</html>

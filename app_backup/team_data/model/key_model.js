@@ -16,7 +16,7 @@ class Key {
         });
     }
     
-    // 제품키 조회      
+    // 내 제품키 조회      
     getMyKey(keyData) {
         return new Promise(async (resolve, reject) => {
             let sql = 'SELECT * FROM poomkey WHERE owner = ?';
@@ -28,19 +28,7 @@ class Key {
             }
         });
     }
-    
-    // 제품키 소유권 이전 , 로직을 짜야됌
-    chageOwnerKey(key) {
-        return new Promise(async (resolve, reject) => {
-            let sql = 'UPDATE poomkey SET owner = ? WHERE index = ?';
-            try {
-                let result = await db.query(sql, [key.owner, key.keyIndex]);
-                resolve(result);
-            } catch(err) {
-                reject(err);
-            }
-         });
-    }
+
     // 전체 키 조회
     getAllKey() {
         return new Promise(async (resolve, reject) => {
@@ -53,6 +41,20 @@ class Key {
             }
         });
     }
+
+    // 제품키 소유권 이전 , 로직을 짜야됌
+    chageOwnerKey(key) {
+        return new Promise(async (resolve, reject) => {
+            let sql = 'UPDATE poomkey SET owner = ? WHERE index = ?';
+            try {
+                let result = await db.query(sql, [key.owner, key.keyIndex]);
+                resolve(result);
+            } catch(err) {
+                reject(err);
+            }
+         });
+    }
+    
 }
 
 module.exports = new Key();
