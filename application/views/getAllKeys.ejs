@@ -14,18 +14,25 @@
 
 <body align="center">
     <% include ./header %>
-    <div>
+    <div align="center">
         <h2>제품 키 조회</h2>
         <table id="tableData">
+        <tr>
+            <td align="center">INDEX</td>
+            <td align="center">NAME</td>
+            <td align="center">KEY</td>
+            <td align="center">OWNER</td>
+            <td align="center">VALIDITY</td>
+        </tr>
         <% data.data.forEach(function (item, index) { %>
         <tr>
-            <td><%= item.poomId %></td>
-            <td><%= item.poomKey %></td>
-            <td><%= item.poomName %></td>
-            <td><%= item.poomOwner %></td>
-            <td><%= item.poomValidity %></td>
+            <td align="center"><%= item.poomId %></td>
+            <td align="center"><%= item.poomKey %></td>
+            <td align="center"><%= item.poomName %></td>
+            <td align="center"><%= item.poomOwner %></td>
+            <td align="center"><%= item.poomValidity %></td>
         </tr>
-        <% }); %> 
+        <% }); %>
         </table>
     </div>
     <a href='/'><button type="submit" id="submit" class="btn btn-primary">홈으로</button></a>

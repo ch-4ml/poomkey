@@ -1,14 +1,20 @@
 // Import modules
 const express = require('express');
+const session = require('express-session');
 const bodyParser = require('body-parser');
 const app = express();
-const cors = require('cors');
+// const cors = require('cors');
 // app.use(cors());
 // Template Engine
 app.set('view engine', 'ejs');
 // Template File Location
 
 // Middleware
+app.use(session({
+    secret: 'keyboard cat',
+    resave: false,
+    saveUninitialized: true
+}));
 app.use(express.static(__dirname + '/public'));
 app.use(express.static(__dirname + '/views'));
 app.use(bodyParser.json());
