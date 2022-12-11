@@ -10,7 +10,7 @@
         "body-parser": "^1.19.0",
         "cors": "^2.8.5",
         "ejs": "^2.7.1",
-        "express": "^4.17.1",
+        "express": "^4.17.3",
         "express-session": "^1.16.2",
         "fabric-ca-client": "^1.4.1",
         "fabric-network": "^1.4.1",
